@@ -13,20 +13,37 @@ This is a learning/benchmarking project, not a production system.
 
 ## Plan
 
-1. Build `llama.cpp` locally (CPU-only build)
-2. Download a small open-weight model from Hugging Face, convert to GGUF,
+1. ✅ Build `llama.cpp` locally (CPU-only build)
+2. ✅ Download a small open-weight model from Hugging Face, convert to GGUF,
    quantize at multiple levels (Q8_0, Q5_K_M, Q4_K_M, Q3_K_M)
-3. Benchmark each quant level: file size, RAM usage, tokens/sec
+3. ✅ Benchmark each quant level: file size, RAM usage, tokens/sec
    (prompt processing + generation), perplexity on a WikiText-2 subset
-4. Test llama.cpp's native KV-cache quantization (`--cache-type-k` /
+4. ✅ Test llama.cpp's native KV-cache quantization (`--cache-type-k` /
    `--cache-type-v`) and measure RAM/speed impact
-5. Compare against Ollama running the same model
-6. Write up results with a table and chart
-7. (Stretch) Sketch a LoRA fine-tuning script for Colab (not run locally —
+5. ✅ Compare against Ollama running the same model
+6. ✅ Write up results with a table and chart
+7. ⬜ (Stretch) Sketch a LoRA fine-tuning script for Colab (not run locally —
    fine-tuning needs a GPU this laptop doesn't have)
 
-Status: project scaffolding in progress. Results will be filled in below as
-each step completes.
+## Key results at a glance
+
+- **Weight quantization** (§2): file size scales ~linearly with bits/weight
+  (1439 MiB at F16 → 395 MiB at Q3_K_M), while perplexity on a WikiText-2
+  sample stays flat through Q5_K_M and only degrades meaningfully at
+  Q3_K_M (+40% relative to F16) — Q4_K_M is a reasonable default
+  quality/size tradeoff. See the chart in §2.
+- **KV-cache quantization** (§4) saves modest RAM (6-10%) at this model
+  size/context length but costs real CPU throughput (-36% to -51% prompt
+  processing) — the memory benefit likely grows at longer contexts, not
+  tested here.
+- **CPU thread scaling is non-monotonic** on this laptop's hybrid P/E-core
+  CPU (§5): generation throughput peaks at 2 threads and gets *worse*
+  with more, the opposite of the naive assumption. This also explained
+  away what first looked like a 5x Ollama-vs-llama.cpp gap.
+- **Ollama vs raw llama.cpp** (§5), same weights: Ollama's default thread
+  handling beat even the hand-tuned local config (52 vs 34 tok/s
+  generation) at ~3% more RAM and roughly double the disk usage (its own
+  blob store duplicates the GGUF).
 
 ## Setup
 
@@ -182,6 +199,11 @@ markdown table.
 | Q5_K_M |      525.8 |    143.1 |      8.5 |          1609.8 | 18.65 ± 1.79 |
 | Q4_K_M |      461.8 |    249.3 |      8.5 |          1769.3 | 20.17 ± 1.96 |
 | Q3_K_M |      394.8 |    168.9 |      8.7 |          1608.6 | 25.90 ± 2.46 |
+
+![File size vs. perplexity by quantization level](results/quantization_chart.png)
+
+Generate this chart yourself with `python scripts/generate_chart.py` (uses
+`matplotlib`, included in `scripts/requirements.txt`).
 
 **Takeaways:**
 - File size shrinks ~3.6x from F16 to Q3_K_M (1439 MiB → 395 MiB), as
