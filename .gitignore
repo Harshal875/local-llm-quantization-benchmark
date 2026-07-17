@@ -1,0 +1,31 @@
+# Model weights and converted/quantized files (huge — never commit these)
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+models/
+*.ggml
+
+# llama.cpp build artifacts (we build from source locally, not commit binaries)
+llama.cpp/build/
+llama.cpp/*.exe
+llama.cpp/*.dll
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Ollama local model store (if pulled locally into repo dir)
+.ollama/
+
+# Large logs / raw benchmark dumps (keep only summarized CSV/MD tables)
+*.log
