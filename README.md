@@ -22,7 +22,7 @@ This is a learning/benchmarking project, not a production system.
    `--cache-type-v`) and measure RAM/speed impact
 5. ✅ Compare against Ollama running the same model
 6. ✅ Write up results with a table and chart
-7. ⬜ (Stretch) Sketch a LoRA fine-tuning script for Colab (not run locally —
+7. ✅ (Stretch) Sketch a LoRA fine-tuning script for Colab (not run locally —
    fine-tuning needs a GPU this laptop doesn't have)
 
 ## Key results at a glance
@@ -349,7 +349,25 @@ prompt with a random UUID so it's guaranteed novel.
   be read as "same ballpark, right conclusion," not exact benchmarks; more
   repetitions per condition would tighten this for a more rigorous report.
 
+### 6. LoRA fine-tuning (stretch goal, Colab GPU, not run locally)
+
+Fine-tuning needs a GPU this laptop doesn't have, so this is a **sketch,
+not a locally-run/verified step**: [colab/lora_finetune_qwen3.ipynb](colab/lora_finetune_qwen3.ipynb)
+is a notebook meant to run on Colab's free T4 GPU tier. It uses
+[unsloth](https://github.com/unslothai/unsloth) to LoRA-fine-tune the same
+Qwen3-0.6B base model used throughout this repo on a small instruction
+dataset, then exports a merged Q4_K_M GGUF that can be dropped straight
+into `models/gguf/` here and benchmarked with the existing
+`scripts/benchmark.py` — closing the loop from "fine-tune on a free cloud
+GPU" back to "benchmark on this CPU-only laptop."
+
+It has not been executed end-to-end (no GPU available to verify), so
+expect first-run friction (dependency versions, exact layer names, etc.) —
+see the "Known gaps / next steps" section at the end of the notebook for
+specifics on what's unverified.
+
 ## Results
 
 Weight-quantization, KV-cache quantization, and Ollama-comparison results
-are all in their respective sections above.
+are all in their respective sections above. The LoRA fine-tuning stretch
+goal is a Colab-only sketch (§6) — not run on this laptop.
