@@ -7,10 +7,11 @@
 models/
 *.ggml
 
-# llama.cpp build artifacts (we build from source locally, not commit binaries)
-llama.cpp/build/
-llama.cpp/*.exe
-llama.cpp/*.dll
+# llama.cpp is a cloned external repo — not committed, see README for setup commands
+llama.cpp/
+
+# Claude Code local tool state
+.claude/
 
 # Python
 __pycache__/
