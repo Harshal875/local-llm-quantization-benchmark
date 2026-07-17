@@ -1,0 +1,4 @@
+engine,pp_tok_s,tg_tok_s,peak_rss_mib
+llama.cpp (-t 8),434.89,17.95,683.2
+llama.cpp (-t 2),207.34,34.17,682.6
+Ollama,473.47,52.44,704.3

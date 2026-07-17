@@ -244,8 +244,90 @@ should become more worthwhile at longer context lengths or larger models,
 where the KV cache is a bigger fraction of total memory — the crossover
 point wasn't reached in this test and would be a good follow-up experiment.
 
+### 5. Ollama vs raw llama.cpp
+
+[Ollama](https://ollama.com) wraps llama.cpp with a persistent background
+service, a model library/pull system, and an HTTP API. To isolate serving
+overhead from weight differences, this comparison imports our *own*
+Q4_K_M GGUF into Ollama (rather than letting Ollama pull its own build of
+the model) via a `Modelfile`:
+
+```bash
+cd ollama
+ollama create qwen3-0.6b-q4km -f Modelfile
+cd ..
+python scripts/benchmark_ollama.py
+```
+
+(Requires Ollama installed and running — the installer sets it up as an
+auto-starting background service on Windows.)
+
+**A CPU-scheduling finding that shaped this comparison:** an early pass at
+this benchmark showed Ollama generating tokens ~5x faster than our
+llama.cpp build. Before writing that up as "Ollama is faster," I checked
+whether it was actually a thread-count artifact — this laptop's CPU
+(13th Gen i5-13500H) is a hybrid P-core/E-core design, and our earlier
+benchmarks all used a flat `-t 8`. A quick thread sweep on `llama-bench`
+(same Q4_K_M model) told a different story:
+
+| Threads | TG tok/s |
+|--------:|---------:|
+| 1       |     14.3 |
+| 2       |     22.3 |
+| 4       |     14.5 |
+| 6       |     11.1 |
+| 8       |      8.5 |
+| 12      |      6.0 |
+| 16      |      4.7 |
+
+Generation speed **peaks at 2 threads and degrades as threads increase** —
+the opposite of the naive "more threads = faster" assumption. Single-token
+decode is memory-bandwidth/latency-bound, not compute-bound, so extra
+threads mostly add scheduling contention across the P-core/E-core split
+without adding usable memory bandwidth. So the comparison below benchmarks
+llama.cpp at both a naive default (`-t 8`) and the empirically-found sweet
+spot (`-t 2`), to give Ollama a fair baseline instead of a strawman.
+
+A second pitfall caught during this benchmark: llama.cpp's server (which
+Ollama wraps) caches matching prompt prefixes per-slot, and that cache
+persists across separate script runs — not just within one run. The first
+version of this script reused the same fixed prompt text on every run,
+which made Ollama's *second* run onward look absurdly fast (prompt
+processing reported as ~6000 tok/s) because it was mostly hitting cache,
+not actually reprocessing the prompt. Fixed by prefixing every benchmark
+prompt with a random UUID so it's guaranteed novel.
+
+**Results (Qwen3-0.6B Q4_K_M, ~250-token prompt, 64 generated tokens):**
+
+| Engine            | PP tok/s | TG tok/s | Peak RSS (MiB) |
+|-------------------|---------:|---------:|----------------:|
+| llama.cpp (`-t 8`) |    434.9 |     17.9 |            683.2 |
+| llama.cpp (`-t 2`) |    207.3 |     34.2 |            682.6 |
+| Ollama (default)   |    473.5 |     52.4 |            704.3 |
+
+**Takeaways:**
+- Ollama's default thread handling out-performs even our empirically-tuned
+  local `-t 2` config (52.4 vs 34.2 tok/s generation) — it likely does its
+  own hybrid-core-aware thread selection rather than a flat thread count,
+  though this wasn't independently confirmed (a good follow-up would be
+  checking Ollama's logs/source for its exact thread strategy). The gap to
+  our best local run is real (~53% faster) but far smaller than the ~5x gap
+  in the buggy first measurement — a reminder to sanity-check "surprising"
+  benchmark results before trusting them.
+- Peak RAM is close either way (~683 MiB llama.cpp vs ~704 MiB Ollama) —
+  Ollama's serving layer adds modest overhead (~3%) on top of the same
+  underlying weights.
+- Disk usage is not equivalent: Ollama copies the imported GGUF into its
+  own blob store (`~/.ollama/models/blobs`, confirmed at 462MB — matching
+  the Q4_K_M file size), so running a model through both tools roughly
+  doubles disk usage for that model versus using llama.cpp alone.
+- These are single-run measurements on a laptop with background load
+  (browser tabs, IDE, etc.), so run-to-run variance is real — see the pp
+  numbers drift between runs during debugging above. Numbers here should
+  be read as "same ballpark, right conclusion," not exact benchmarks; more
+  repetitions per condition would tighten this for a more rigorous report.
+
 ## Results
 
-Weight-quantization and KV-cache quantization results are in the
-"Benchmarking" and "KV-cache quantization" sections above. The Ollama
-comparison will be added here once that step completes.
+Weight-quantization, KV-cache quantization, and Ollama-comparison results
+are all in their respective sections above.
