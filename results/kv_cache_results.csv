@@ -1,0 +1,4 @@
+cache_type,pp_tok_s,tg_tok_s,peak_rss_mib
+f16 (baseline),214.46,8.28,787.9
+q8_0,138.32,6.38,736.4
+q4_0,104.76,7.42,708.4

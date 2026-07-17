@@ -203,8 +203,49 @@ markdown table.
   size 2048 even at ctx 512) — the throughput benchmark's peak RSS is
   consistently lower than the perplexity run's for the same quant.
 
+### 4. KV-cache quantization
+
+Separately from weight quantization, llama.cpp can also quantize the
+KV cache itself (the per-token key/value activations stored during
+generation) via `--cache-type-k` / `--cache-type-v`. This is a different
+lever from weight quantization — it shrinks the *runtime* memory that grows
+with context length, not the fixed on-disk model size. Non-F16 cache types
+require Flash Attention (`-fa on`).
+
+```bash
+python scripts/benchmark_kv_cache.py
+```
+
+This fixes the weight quant at Q4_K_M and runs a longer prompt+generation
+(1024 + 256 tokens) than the main benchmark, specifically so the KV cache
+is large enough relative to the model's fixed weight RAM for cache-type
+differences to be visible (at short contexts the ~460MB of model weights
+dominates RAM and masks any KV-cache effect).
+
+**Results (Qwen3-0.6B Q4_K_M, 1024+256 tokens, 8 threads, `-fa on` throughout
+so all three rows isolate cache-type effects rather than mixing in a
+flash-attention on/off variable):**
+
+| KV cache type | PP tok/s | TG tok/s | Peak RSS (MiB) | RSS vs F16 |
+|----------------|---------:|---------:|----------------:|-----------:|
+| F16 (baseline) |    214.5 |      8.3 |            787.9 |        — |
+| Q8_0           |    138.3 |      6.4 |            736.4 |  -51.5 (-6.5%) |
+| Q4_0           |    104.8 |      7.4 |            708.4 |  -79.5 (-10.1%) |
+
+**Takeaway:** at this model size (0.6B) and context length (1280 tokens),
+quantizing the KV cache saves relatively little RAM in absolute terms
+(51-80 MiB) because the fixed model weights (~460 MiB) dominate total
+memory — but it comes with a real prompt-processing speed cost on CPU
+(-36% at Q8_0, -51% at Q4_0), since dequantizing the cache during attention
+adds compute overhead that isn't free. Generation speed (TG) is noisier at
+this scale (single-token decode is already slow and memory-bound) and
+doesn't show as clean a trend. The RAM benefit of KV-cache quantization
+should become more worthwhile at longer context lengths or larger models,
+where the KV cache is a bigger fraction of total memory — the crossover
+point wasn't reached in this test and would be a good follow-up experiment.
+
 ## Results
 
-Weight-quantization benchmark results are in the "Benchmarking" section
-above. KV-cache quantization and Ollama comparison results will be added
-here as those steps complete.
+Weight-quantization and KV-cache quantization results are in the
+"Benchmarking" and "KV-cache quantization" sections above. The Ollama
+comparison will be added here once that step completes.
