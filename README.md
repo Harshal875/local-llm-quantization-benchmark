@@ -119,6 +119,92 @@ is deprecated and, on Windows, crashes on a Unicode deprecation-warning
 glyph under the default `cp1252` console encoding — hence
 `PYTHONIOENCODING=utf-8` in the script).
 
+### 3. Benchmarking
+
+Install the extra script dependencies (on top of the conversion deps from
+step 2):
+
+```bash
+pip install -r scripts/requirements.txt
+```
+
+The perplexity eval needs a small held-out text sample. Fetch a ~20KB
+WikiText-2 subset (test split, from the `Salesforce/wikitext` dataset on
+Hugging Face) once:
+
+```bash
+python scripts/fetch_wikitext_sample.py
+```
+
+Then run the benchmark suite:
+
+```bash
+python scripts/benchmark.py
+```
+
+For each quant level, this sequentially (one model in memory at a time):
+- Reads file size directly from disk
+- Runs `llama-bench` (256 prompt tokens / 64 generation tokens, 3
+  repetitions, 8 threads) for prompt-processing and generation throughput
+- Runs `llama-perplexity` over 5 chunks of 512 tokens from the WikiText-2
+  sample
+- Polls the subprocess's resident set size (RSS) every 100ms in a background
+  thread (via `psutil`) to record peak RAM used during each run
+
+Results are written to `results/benchmark_results.csv` and printed as a
+markdown table.
+
+**What the metrics mean:**
+- **File size**: on-disk size of the GGUF weights — the main lever
+  quantization pulls.
+- **PP tok/s (prompt processing)**: how fast the model ingests/encodes input
+  tokens (relevant for long prompts, e.g. RAG context).
+- **TG tok/s (token generation)**: how fast the model produces output tokens
+  one at a time — this is usually what "feels slow" to a user chatting with
+  the model, and is memory-bandwidth-bound on CPU (not compute-bound), which
+  is why it barely changes across quant levels here — the bottleneck is
+  moving weights through RAM, not the matrix-multiply itself.
+- **Peak RSS**: actual physical RAM used during the run — the practical
+  ceiling on what model+quant combination fits on a given machine.
+- **Perplexity (PPL)**: how "surprised" the model is by the held-out text
+  (lower = the model assigns higher probability to what actually comes
+  next = better fit to that text distribution). It's a relative quality
+  proxy, not a benchmark of "intelligence" — useful for seeing how much a
+  quantization level degrades the model's underlying language modeling
+  vs. the FP16 baseline.
+
+**Results (Qwen3-0.6B, 8 threads, this laptop):**
+
+| Quant  | Size (MiB) | PP tok/s | TG tok/s | Peak RSS (MiB) | Perplexity |
+|--------|-----------:|---------:|---------:|----------------:|-----------:|
+| F16    |     1439.4 |    181.5 |      7.1 |          2331.2 | 18.56 ± 1.76 |
+| Q8_0   |      767.5 |    228.6 |      8.7 |          1796.4 | 18.46 ± 1.75 |
+| Q5_K_M |      525.8 |    143.1 |      8.5 |          1609.8 | 18.65 ± 1.79 |
+| Q4_K_M |      461.8 |    249.3 |      8.5 |          1769.3 | 20.17 ± 1.96 |
+| Q3_K_M |      394.8 |    168.9 |      8.7 |          1608.6 | 25.90 ± 2.46 |
+
+**Takeaways:**
+- File size shrinks ~3.6x from F16 to Q3_K_M (1439 MiB → 395 MiB), as
+  expected from ~16 bits/weight down to ~4.3 bits/weight.
+- Generation speed (TG tok/s) is nearly flat (7-9 tok/s) across all quant
+  levels — on CPU, single-token generation is memory-bandwidth bound, so
+  a smaller model mostly helps by needing less RAM traffic per token, but
+  the gain is modest at this model size. Prompt-processing (PP) numbers are
+  noisier run-to-run (background CPU contention on a laptop with only 3
+  repetitions per test) and shouldn't be read as a clean scaling trend
+  here — this would benefit from more repetitions in a future pass.
+- Perplexity is essentially unchanged through Q8_0 and Q5_K_M (within noise
+  of the F16 baseline), starts drifting at Q4_K_M, and degrades noticeably
+  at Q3_K_M (+~40% relative to F16) — consistent with the general rule of
+  thumb that Q4_K_M is often the "sweet spot" and quality loss accelerates
+  below it.
+- Peak RAM roughly tracks file size plus a fairly constant ~1.1-1.2GB of
+  overhead from the perplexity run's larger batch/context buffers (batch
+  size 2048 even at ctx 512) — the throughput benchmark's peak RSS is
+  consistently lower than the perplexity run's for the same quant.
+
 ## Results
 
-_TBD — filled in as benchmarks complete._
+Weight-quantization benchmark results are in the "Benchmarking" section
+above. KV-cache quantization and Ollama comparison results will be added
+here as those steps complete.

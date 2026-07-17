@@ -1,0 +1,5 @@
+# Extra deps for this repo's own scripts (on top of llama.cpp's
+# requirements-convert_hf_to_gguf.txt, which brings in torch/transformers/gguf).
+huggingface_hub[cli]==0.36.2
+datasets==5.0.0
+psutil==7.2.2
