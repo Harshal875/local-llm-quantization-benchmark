@@ -78,7 +78,46 @@ HTTP server).
 
 ### 2. Model download & quantization
 
-_TBD — added in the next step._
+**Model:** [Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) — Apache-2.0,
+instruct/chat model, 0.6B params, BF16 safetensors (~1.5GB on disk). Picked
+over Gemma 3n E2B because Qwen's small dense models have mature, well-tested
+GGUF/llama.cpp support, while Gemma 3n's "effective 2B" MatFormer architecture
+has a larger real on-disk/RAM footprint than the name suggests and newer,
+less battle-tested llama.cpp support. At 0.6B params this comfortably fits
+this laptop's 16GB RAM even before quantization, leaving headroom to scale up
+to Qwen3-1.7B/4B later if useful.
+
+Set up the Python environment (from repo root):
+
+```bash
+python -m venv .venv
+source .venv/Scripts/activate   # Git Bash / MSYS2; use .venv\Scripts\activate on cmd
+pip install -r llama.cpp/requirements/requirements-convert_hf_to_gguf.txt
+pip install "huggingface_hub[cli]"
+```
+
+Then download, convert, and quantize in one go:
+
+```bash
+bash scripts/download_and_convert.sh
+```
+
+This downloads the model to `models/qwen3-0.6b-hf/`, converts it to FP16
+GGUF (`models/gguf/qwen3-0.6b-f16.gguf`), then produces 4 quantized copies:
+
+| Quant   | Size (MiB) | Bits/weight | Notes |
+|---------|-----------:|-------------|-------|
+| Q8_0    | 761.8      | 8.50        | Near-lossless, largest of the 4 |
+| Q5_K_M  | 520.2      | 5.81        | Good quality/size balance |
+| Q4_K_M  | 456.1      | 5.09        | Common "sweet spot" default |
+| Q3_K_M  | 389.1      | 4.34        | Smallest, most quality loss |
+
+(FP16 baseline is 1433.75 MiB / 16 bits-per-weight for comparison.)
+
+Note: `hf download` is the current CLI (the older `huggingface-cli download`
+is deprecated and, on Windows, crashes on a Unicode deprecation-warning
+glyph under the default `cp1252` console encoding — hence
+`PYTHONIOENCODING=utf-8` in the script).
 
 ## Results
 
