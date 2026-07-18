@@ -1,8 +1,7 @@
 # Local LLM Quantization Benchmark
 
 Hands-on exploration of local LLM inference and quantization on CPU-only
-hardware — built as a portfolio project for AI/ML placement interviews.
-This is a learning/benchmarking project, not a production system.
+hardware
 
 ## Hardware used
 
