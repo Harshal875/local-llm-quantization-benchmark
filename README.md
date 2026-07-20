@@ -350,6 +350,7 @@ prompt with a random UUID so it's guaranteed novel.
 
 ### 6. LoRA fine-tuning (stretch goal, Colab GPU, not run locally)
 
+
 Fine-tuning needs a GPU this laptop doesn't have, so this is a **sketch,
 not a locally-run/verified step**: [colab/lora_finetune_qwen3.ipynb](colab/lora_finetune_qwen3.ipynb)
 is a notebook meant to run on Colab's free T4 GPU tier. It uses
