@@ -371,3 +371,4 @@ specifics on what's unverified.
 Weight-quantization, KV-cache quantization, and Ollama-comparison results
 are all in their respective sections above. The LoRA fine-tuning stretch
 goal is a Colab-only sketch (§6) — not run on this laptop.
+
